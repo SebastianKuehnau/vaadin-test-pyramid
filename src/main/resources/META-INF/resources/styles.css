@@ -1,1 +1,20 @@
 /* Add your styles here */
+
+vaadin-notification-card[theme~="success"]::part(content),
+vaadin-notification-card[theme~="error"]::part(content),
+vaadin-notification-card[theme~="warning"]::part(content) {
+    color: white;
+    font-weight: bold;
+}
+
+vaadin-notification-card[theme~="success"]::part(overlay) {
+    background: #2E7D32;
+}
+
+vaadin-notification-card[theme~="error"]::part(overlay) {
+    background: #C62828;
+}
+
+vaadin-notification-card[theme~="warning"]::part(overlay) {
+    background: #EF6C00;
+}

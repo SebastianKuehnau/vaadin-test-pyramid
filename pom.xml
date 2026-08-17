@@ -10,6 +10,7 @@
     <properties>
         <java.version>25</java.version>
         <vaadin.version>25.2.6</vaadin.version>
+        <playwright.version>1.62.0</playwright.version>
     </properties>
     
     <parent>
@@ -51,9 +52,28 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Level 3: browserless UI unit tests (free since Vaadin 25.1) -->
         <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>browserless-test-spring</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+          Level 4: end-to-end tests with the official Vaadin TestBench API.
+          Requires a commercial Vaadin subscription to run; the version is not
+          managed by vaadin-bom, so it is pinned to the platform version here.
+        -->
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-testbench-junit6</artifactId>
+            <version>${vaadin.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Level 5: end-to-end tests with Playwright -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -80,6 +100,31 @@
         </plugins>
     </build>
     
+    <profiles>
+        <!--
+          End-to-end tests (pyramid levels 4 and 5) need a real browser, so they
+          are kept out of the fast feedback loop. Their class names end in *IT,
+          which Surefire ignores by default; this profile adds Failsafe, which
+          picks them up. Run them with:
+
+              ./mvnw verify -Pe2e
+
+          The dependencies stay outside the profile on purpose, so that the *IT
+          classes always compile, even during a plain "./mvnw test".
+        -->
+        <profile>
+            <id>e2e</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <repositories>
         <repository>
             <id>central</id>
