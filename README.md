@@ -1,6 +1,6 @@
-# My Application
+# Vaadin Test Pyramid Demo Application
 
-A Spring Boot + Vaadin project. Build your UI in pure Java — no HTML, no JavaScript.
+A Spring Boot + Vaadin project with Testbench, JUnit, Playwright and BrowserlessTest Cases. Build and Test your UI in pure Java.
 
 > **New to Vaadin?** The 5-minute [Quickstart](https://vaadin.com/quickstart) walks you from here to your first running app, a live code change, and an AI-assisted edit with Copilot.
 
@@ -48,10 +48,10 @@ A `.mcp.json` is included (commented out by default). Uncomment it, or run the s
 
 ## Testing — the test pyramid
 
-The single piece of logic in this project — deciding whether the name you typed is
-a capitalized word, a number, or something else, and colouring the notification
-accordingly — is covered five times over, once at every level of the test
-pyramid. Each level buys a different kind of confidence at a different price.
+One piece of logic — is the name a capitalized word, a number, or something else,
+and which notification variant does that produce — tested five times, once per
+level of the pyramid. Each level buys a different kind of confidence at a
+different price.
 
 ```
                      ▲  slow, brittle, closest to a real user
@@ -69,116 +69,74 @@ pyramid. Each level buys a different kind of confidence at a different price.
                      ▼  fast, stable, furthest from a real user
 ```
 
-| # | Level | Test class | Technology | What it proves |
-|---|-------|-----------|------------|----------------|
-| 1 | Unit | [`NameClassifierTest`](src/test/java/dev/example/testing/logic/NameClassifierTest.java) | JUnit only | The classification rules themselves, including Unicode edge cases |
-| 2 | Integration | [`HelloWorldViewIntegrationTest`](src/test/java/dev/example/testing/it/HelloWorldViewIntegrationTest.java) | `@SpringBootTest` | The application context boots and Spring can construct the view (i.e. its dependencies can be injected) |
-| 3 | UI unit | [`HelloWorldViewBrowserlessTest`](src/test/java/dev/example/testing/ui/HelloWorldViewBrowserlessTest.java) | Vaadin [browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) | Every branch of the click listener, driven through the real Vaadin server-side API — no browser, no servlet container |
-| 4 | End-to-end | [`HelloWorldViewIT`](src/test/java/dev/example/testing/ui/HelloWorldViewIT.java) | Vaadin [TestBench](https://vaadin.com/docs/latest/flow/testing/end-to-end) | The whole stack in a real browser, using an API that understands Vaadin components and waits for client-server round trips automatically |
-| 5 | End-to-end | [`HelloWorldViewPlaywrightIT`](src/test/java/dev/example/testing/ui/HelloWorldViewPlaywrightIT.java) | [Playwright](https://playwright.dev/java/) | The same, but with a generic browser automation library talking to the web components directly |
+| # | Test class | Technology | What it proves |
+|---|-----------|------------|----------------|
+| 1 | [`NameClassifierTest`](src/test/java/dev/example/testing/logic/NameClassifierTest.java) | JUnit only | The classification rules |
+| 2 | [`HelloWorldViewIntegrationTest`](src/test/java/dev/example/testing/it/HelloWorldViewIntegrationTest.java) | `@SpringBootTest` | The context boots and Spring can construct the view |
+| 3 | [`HelloWorldViewBrowserlessTest`](src/test/java/dev/example/testing/ui/HelloWorldViewBrowserlessTest.java) | [Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) | The click behaviour, via the real Vaadin server-side API — no browser, no servlet container |
+| 4 | [`HelloWorldViewIT`](src/test/java/dev/example/testing/ui/HelloWorldViewIT.java) | [TestBench](https://vaadin.com/docs/latest/flow/testing/end-to-end) | The whole stack in a browser, with an API that knows Vaadin components |
+| 5 | [`HelloWorldViewPlaywrightIT`](src/test/java/dev/example/testing/ui/HelloWorldViewPlaywrightIT.java) | [Playwright](https://playwright.dev/java/) | The same, with a library that knows nothing about Vaadin |
 
-The three UI-related test classes sit in `dev.example.testing.ui`, next to the
-view they exercise, and all three locate components the same way: the view calls
-`setTestId("name-field")`, which renders as a `data-testid` attribute that
-browserless (`find(TextField.class).testId(...)`) and Playwright
-(`[data-testid='name-field']`) can both target. Prefer that over CSS selectors or
-text content — test IDs survive restyling, relayouting and translation.
-
-Levels 1–3 run in about three seconds in total and are meant for every save.
-Levels 4 and 5 need a real browser, so they are named `*IT` and kept behind a
-Maven profile.
+Levels 3, 4 and 5 run the same three cases so they can be compared side by side,
+and all three find components by test ID: the view calls
+`setTestId("name-field")`, which renders as `data-testid` and is targeted by
+`find(TextField.class).testId(...)` in browserless and
+`[data-testid='name-field']` in Playwright. Prefer that over CSS selectors or
+text content — test IDs survive restyling and translation.
 
 ### Running the tests
 
-Fast feedback loop — levels 1, 2 and 3:
-
 ```bash
-./mvnw test
+./mvnw test                              # levels 1–3, ~3 seconds
+./mvnw verify -Pe2e                      # all five levels
+./mvnw verify -Pe2e -Dgroups=playwright  # add level 5 only, no licence needed
 ```
 
-Everything, including the browser-based end-to-end tests:
+Levels 4 and 5 are named `*IT`, so Surefire skips them and only the `e2e` profile
+(Failsafe) picks them up. Both start the application themselves on a random free
+port, so no server has to be running and port 8080 stays free for development.
+
+Single class or method:
 
 ```bash
-./mvnw verify -Pe2e
-```
-
-A single level, or a single test method:
-
-```bash
-./mvnw test -Dtest=NameClassifierTest                       # level 1
-./mvnw test -Dtest=HelloWorldViewIntegrationTest            # level 2
-./mvnw test -Dtest=HelloWorldViewBrowserlessTest            # level 3
-./mvnw verify -Pe2e -Dit.test=HelloWorldViewIT              # level 4
-./mvnw verify -Pe2e -Dit.test=HelloWorldViewPlaywrightIT    # level 5
-
+./mvnw test -Dtest=HelloWorldViewBrowserlessTest
 ./mvnw test -Dtest='HelloWorldViewBrowserlessTest#greeting_usesMatchingThemeVariant'
+./mvnw verify -Pe2e -Dit.test=HelloWorldViewPlaywrightIT
 ```
 
-The Playwright tests are tagged `playwright`, so they can be filtered. This is
-the useful recipe for a machine without a Vaadin subscription — it runs the
-end-to-end level that needs no licence and leaves out the one that does:
+Note that `-Dgroups`/`-DexcludedGroups` also filter levels 1–3, and that `verify`
+fails if a filter matches no integration test at all — add `-DfailIfNoTests=false`
+when that is intentional.
 
-```bash
-./mvnw verify -Pe2e -Dgroups=playwright              # only level 5
-./mvnw verify -Pe2e -DexcludedGroups=playwright      # everything but level 5
-```
+### Prerequisites for levels 4 and 5
 
-Two things worth knowing about these filters:
+- **TestBench** requires a **commercial Vaadin subscription** (validated at
+  runtime; without it the tests error out) and a local Chrome. Start a
+  [free trial](https://vaadin.com/trial) to get a key in `~/.vaadin/proKey`.
+- **Playwright** downloads a browser on first run. To install it — and, on a bare
+  Linux machine, its system libraries — explicitly instead
+  (`-Dexec.classpathScope=test` is required because Playwright is a test-scoped
+  dependency):
 
-- The tag filter applies to the unit tests as well, so `-Dgroups=playwright`
-  reports `Tests run: 0` for levels 1–3. Combine it with a separate `./mvnw test`
-  run if you want both.
-- If a filter ends up matching no integration test at all, the `verify` goal
-  fails with an empty test run. Add `-DfailIfNoTests=false` when that is
-  intentional.
+  ```bash
+  ./mvnw exec:java -Dexec.mainClass=com.microsoft.playwright.CLI \
+    -Dexec.classpathScope=test -Dexec.args="install chromium"
+  sudo ./mvnw exec:java -Dexec.mainClass=com.microsoft.playwright.CLI \
+    -Dexec.classpathScope=test -Dexec.args="install-deps"
+  ```
 
-### What you need for the end-to-end levels
-
-Both end-to-end levels start the application themselves on a random free port
-via `@SpringBootTest(webEnvironment = RANDOM_PORT)`, so you do **not** have to
-start a server first — and a development server on port 8080 will not interfere.
-
-**Level 4 (TestBench)** requires a **commercial Vaadin subscription**; TestBench
-validates its licence at runtime and the tests error out without one. Start a
-[free trial](https://vaadin.com/trial) or sign in once so that a licence key is
-stored in `~/.vaadin/proKey`. It also needs a local Chrome.
-
-**Level 5 (Playwright)** needs a browser too, but downloads one itself on first
-run. To install it explicitly:
-
-```bash
-./mvnw exec:java -Dexec.mainClass=com.microsoft.playwright.CLI \
-  -Dexec.classpathScope=test -Dexec.args="install chromium"
-```
-
-On a bare Linux machine you may also need the browser's system libraries:
-
-```bash
-sudo ./mvnw exec:java -Dexec.mainClass=com.microsoft.playwright.CLI \
-  -Dexec.classpathScope=test -Dexec.args="install-deps"
-```
-
-(`-Dexec.classpathScope=test` is required because Playwright is a test-scoped
-dependency.)
-
-This means that in a CI pipeline without a Vaadin subscription, levels 1, 2, 3
-and 5 all run; only level 4 needs to be skipped.
+So in CI without a Vaadin subscription, only level 4 needs to be skipped.
 
 ### Where to add tests next
 
-As the application grows, each new piece of behaviour belongs at the lowest level
-that can still prove it:
+Put each new test at the lowest level that can still catch the bug it targets:
 
-- **Business rules** → level 1. No framework, no context, milliseconds per test.
-- **Services, repositories, database access** → level 2, with `@SpringBootTest`,
-  `@DataJpaTest` or Testcontainers. This is also where HTTP-level checks belong
-  once they matter: that `/` returns the bootstrap page, that a custom stylesheet
-  is served, that the `@Push` endpoint answers.
-- **View behaviour** → level 3. It is fast enough to cover every branch, and
-  because it runs in the same JVM as the server you can seed and roll back the
-  database from the test.
-- **Critical user journeys only** → levels 4 and 5. Keep these few; they are the
-  slowest and the most likely to fail for reasons unrelated to your change.
+- **Business rules** → level 1.
+- **Services, repositories, HTTP endpoints** → level 2, with `@DataJpaTest`,
+  `@WebMvcTest` or Testcontainers.
+- **View behaviour and validation** → level 3. Fast enough to cover every branch,
+  and it can seed and roll back the database from the same JVM.
+- **A handful of critical journeys and anything visual** → levels 4 and 5.
 
 ## Build for production
 
